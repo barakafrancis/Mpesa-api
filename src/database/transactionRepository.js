@@ -37,3 +37,136 @@ export async function saveC2BTransaction(t) {
        @posted, @tranpushed, @paidtoaccount, @syncid, 0);`);
   return { duplicate: false, id: result.recordset[0].id };
 }
+
+export async function saveSTKTransaction(transaction) {
+  const pool = await getPool();
+
+  const request = pool.request();
+
+  request.input(
+    "TransactionType",
+    sql.NVarChar(100),
+    transaction.TransactionType
+  );
+
+  request.input(
+    "TransID",
+    sql.NVarChar(100),
+    transaction.TransID
+  );
+
+  request.input(
+    "TransTime",
+    sql.NVarChar(50),
+    transaction.TransTime
+  );
+
+  request.input(
+    "TransAmount",
+    sql.NVarChar(50),
+    transaction.TransAmount
+  );
+
+  request.input(
+    "BusinessShortCode",
+    sql.NVarChar(100),
+    transaction.BusinessShortCode
+  );
+
+  request.input(
+    "BillRefNumber",
+    sql.NVarChar(50),
+    transaction.BillRefNumber
+  );
+
+  request.input(
+    "MSISDN",
+    sql.NVarChar(100),
+    transaction.MSISDN
+  );
+
+  request.input(
+    "FirstName",
+    sql.NVarChar(100),
+    transaction.FirstName
+  );
+
+  request.input(
+    "MiddleName",
+    sql.NVarChar(100),
+    transaction.MiddleName
+  );
+
+  request.input(
+    "LastName",
+    sql.NVarChar(100),
+    transaction.LastName
+  );
+
+  request.input(
+    "posted",
+    sql.Bit,
+    false
+  );
+
+  request.input(
+    "tranpushed",
+    sql.Bit,
+    true
+  );
+
+  request.input(
+    "paidtoaccount",
+    sql.NVarChar(100),
+    transaction.paidtoaccount
+  );
+
+  request.input(
+    "syncid",
+    sql.NVarChar(250),
+    transaction.syncid
+  );
+
+  const result = await request.query(`
+    INSERT INTO dbo.mtransdetails
+    (
+      TransactionType,
+      TransID,
+      TransTime,
+      TransAmount,
+      BusinessShortCode,
+      BillRefNumber,
+      MSISDN,
+      FirstName,
+      MiddleName,
+      LastName,
+      posted,
+      tranpushed,
+      paidtoaccount,
+      syncid,
+      voided
+    )
+    VALUES
+    (
+      @TransactionType,
+      @TransID,
+      @TransTime,
+      @TransAmount,
+      @BusinessShortCode,
+      @BillRefNumber,
+      @MSISDN,
+      @FirstName,
+      @MiddleName,
+      @LastName,
+      @posted,
+      @tranpushed,
+      @paidtoaccount,
+      @syncid,
+      0
+    );
+
+    SELECT SCOPE_IDENTITY() AS id;
+  `);
+
+  return result.recordset[0];
+}
