@@ -39,92 +39,108 @@ export async function saveC2BTransaction(t) {
 }
 
 export async function saveSTKTransaction(transaction) {
+  if (!transaction.mpesaReceiptNumber) {
+    throw new Error('MpesaReceiptNumber is required');
+  }
+
+  // Prevent duplicate STK transactions
+  if (await transactionExists(transaction.mpesaReceiptNumber)) {
+    return { duplicate: true };
+  }
+
   const pool = await getPool();
 
   const request = pool.request();
 
   request.input(
-    "TransactionType",
+    'TransactionType',
     sql.NVarChar(100),
-    transaction.TransactionType
+    'STK'
   );
 
   request.input(
-    "TransID",
+    'TransID',
     sql.NVarChar(100),
-    transaction.TransID
+    transaction.mpesaReceiptNumber
   );
 
   request.input(
-    "TransTime",
+    'TransTime',
     sql.NVarChar(50),
-    transaction.TransTime
+    transaction.transactionDate
+      ? String(transaction.transactionDate)
+      : null
   );
 
   request.input(
-    "TransAmount",
+    'TransAmount',
     sql.NVarChar(50),
-    transaction.TransAmount
+    transaction.amount !== undefined &&
+    transaction.amount !== null
+      ? String(transaction.amount)
+      : null
   );
 
   request.input(
-    "BusinessShortCode",
+    'BusinessShortCode',
     sql.NVarChar(100),
-    transaction.BusinessShortCode
+    process.env.MPESA_SHORTCODE
   );
 
   request.input(
-    "BillRefNumber",
+    'BillRefNumber',
     sql.NVarChar(50),
-    transaction.BillRefNumber
+    null
   );
 
   request.input(
-    "MSISDN",
+    'MSISDN',
     sql.NVarChar(100),
-    transaction.MSISDN
+    transaction.phoneNumber
+      ? String(transaction.phoneNumber)
+      : null
   );
 
   request.input(
-    "FirstName",
+    'FirstName',
     sql.NVarChar(100),
-    transaction.FirstName
+    null
   );
 
   request.input(
-    "MiddleName",
+    'MiddleName',
     sql.NVarChar(100),
-    transaction.MiddleName
+    null
   );
 
   request.input(
-    "LastName",
+    'LastName',
     sql.NVarChar(100),
-    transaction.LastName
+    null
   );
 
   request.input(
-    "posted",
+    'posted',
     sql.Bit,
     false
   );
 
   request.input(
-    "tranpushed",
+    'tranpushed',
     sql.Bit,
     true
   );
 
   request.input(
-    "paidtoaccount",
+    'paidtoaccount',
     sql.NVarChar(100),
-    transaction.paidtoaccount
+    null
   );
 
   request.input(
-    "syncid",
+    'syncid',
     sql.NVarChar(250),
-    transaction.syncid
+    transaction.checkoutRequestId
   );
 
   const result = await request.query(`
@@ -168,5 +184,8 @@ export async function saveSTKTransaction(transaction) {
     SELECT SCOPE_IDENTITY() AS id;
   `);
 
-  return result.recordset[0];
+  return {
+    duplicate: false,
+    id: result.recordset[0].id
+  };
 }
