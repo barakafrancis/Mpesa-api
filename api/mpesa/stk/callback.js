@@ -1,30 +1,74 @@
-import { saveSTKTransaction } from '../../../src/database/transactionRepository.js';
-import { json } from '../../../src/utils/http.js';
-import { logError } from '../../../src/utils/logger.js';
+import { saveSTKTransaction } from "../../../src/database/transactionRepository.js";
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      message: "Method not allowed"
+    });
+  }
+
   try {
     const callback = req.body?.Body?.stkCallback;
-    if (!callback) return json(res, 200, { ResultCode: 0, ResultDesc: 'Accepted' });
 
-    const metadata = Object.fromEntries(
-      (callback.CallbackMetadata?.Item || []).map(item => [item.Name, item.Value ?? null])
-    );
+    if (!callback) {
+      return res.status(400).json({
+        ResultCode: 1,
+        ResultDesc: "Invalid callback"
+      });
+    }
 
-    await saveSTKTransaction({
-      resultCode: callback.ResultCode,
-      resultDesc: callback.ResultDesc,
-      merchantRequestId: callback.MerchantRequestID,
-      checkoutRequestId: callback.CheckoutRequestID,
-      amount: metadata.Amount,
-      mpesaReceiptNumber: metadata.MpesaReceiptNumber,
-      transactionDate: metadata.TransactionDate,
-      phoneNumber: metadata.PhoneNumber
+    const metadata = {};
+
+    for (const item of callback.CallbackMetadata?.Item || []) {
+      metadata[item.Name] = item.Value ?? null;
+    }
+
+    const transaction = {
+      TransactionType: "STK Push",
+
+      TransID: metadata.MpesaReceiptNumber,
+
+      TransTime: new Date().toISOString(),
+
+      TransAmount: metadata.Amount,
+
+      BusinessShortCode: process.env.MPESA_SHORTCODE,
+
+      BillRefNumber: metadata.AccountReference,
+
+      MSISDN: metadata.PhoneNumber,
+
+      FirstName: null,
+
+      MiddleName: null,
+
+      LastName: null,
+
+      paidtoaccount: metadata.AccountReference,
+
+      syncid: callback.CheckoutRequestID
+    };
+
+    if (callback.ResultCode === 0) {
+      await saveSTKTransaction(transaction);
+
+      console.log(
+        `[STK_CALLBACK] Transaction saved: ${transaction.TransID}`
+      );
+    }
+
+    return res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted"
     });
 
-    return json(res, 200, { ResultCode: 0, ResultDesc: 'Accepted' });
-  } catch (e) {
-    logError('STK_CALLBACK', e);
-    return json(res, 200, { ResultCode: 0, ResultDesc: 'Accepted' });
+  } catch (error) {
+    console.error("[STK_CALLBACK] Error:", error);
+
+    return res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted"
+    });
   }
 }
