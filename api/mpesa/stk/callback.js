@@ -1,65 +1,97 @@
-export async function saveSTKTransaction(transaction) {
-  const pool = await getPool();
+import { saveSTKTransaction } from '../../../src/database/transactionRepository.js';
+import { logError } from '../../../src/utils/logger.js';
 
-  await pool.request()
-    .input('TransactionType', sql.VarChar, 'STK Push')
-    .input('TransID', sql.VarChar, transaction.mpesaReceiptNumber)
-    .input('TransTime', sql.VarChar, transaction.transactionDate)
-    .input('TransAmount', sql.Decimal(18, 2), transaction.amount)
-    .input(
-      'BusinessShortCode',
-      sql.VarChar,
-      process.env.MPESA_SHORTCODE
-    )
-    .input('BillRefNumber', sql.VarChar, null)
-    .input('OrgAccountBalance', sql.Decimal(18, 2), null)
-    .input('MSISDN', sql.VarChar, transaction.phoneNumber)
-    .input('FirstName', sql.VarChar, null)
-    .input('MiddleName', sql.VarChar, null)
-    .input('LastName', sql.VarChar, null)
-    .input('posted', sql.Bit, 0)
-    .input('tranpushed', sql.Bit, 0)
-    .input('paidtoaccount', sql.Bit, 0)
-    .input('syncid', sql.VarChar, transaction.checkoutRequestId)
-    .input('voided', sql.Bit, 0)
-    .query(`
-      INSERT INTO dbo.mtransdetails
-      (
-        TransactionType,
-        TransID,
-        TransTime,
-        TransAmount,
-        BusinessShortCode,
-        BillRefNumber,
-        OrgAccountBalance,
-        MSISDN,
-        FirstName,
-        MiddleName,
-        LastName,
-        posted,
-        tranpushed,
-        paidtoaccount,
-        syncid,
-        voided
-      )
-      VALUES
-      (
-        @TransactionType,
-        @TransID,
-        @TransTime,
-        @TransAmount,
-        @BusinessShortCode,
-        @BillRefNumber,
-        @OrgAccountBalance,
-        @MSISDN,
-        @FirstName,
-        @MiddleName,
-        @LastName,
-        @posted,
-        @tranpushed,
-        @paidtoaccount,
-        @syncid,
-        @voided
-      )
-    `);
+export default async function handler(req, res) {
+  // Only accept POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      ResultCode: 1,
+      ResultDesc: 'Method not allowed'
+    });
+  }
+
+  try {
+    // Extract STK callback
+    const callback = req.body?.Body?.stkCallback;
+
+    // Always acknowledge malformed/empty callbacks
+    if (!callback) {
+      return res.status(200).json({
+        ResultCode: 0,
+        ResultDesc: 'Accepted'
+      });
+    }
+
+    // Extract callback metadata
+    const metadata = Object.fromEntries(
+      (callback.CallbackMetadata?.Item || []).map(item => [
+        item.Name,
+        item.Value ?? null
+      ])
+    );
+
+    console.log('[STK_CALLBACK]', {
+      resultCode: callback.ResultCode,
+      resultDesc: callback.ResultDesc,
+      merchantRequestId: callback.MerchantRequestID,
+      checkoutRequestId: callback.CheckoutRequestID,
+      metadata
+    });
+
+    /*
+     * Save only successful transactions.
+     * ResultCode 0 = Successful
+     */
+    if (callback.ResultCode === 0) {
+      await saveSTKTransaction({
+        resultCode: callback.ResultCode,
+
+        resultDesc: callback.ResultDesc,
+
+        merchantRequestId:
+          callback.MerchantRequestID,
+
+        checkoutRequestId:
+          callback.CheckoutRequestID,
+
+        amount:
+          metadata.Amount,
+
+        mpesaReceiptNumber:
+          metadata.MpesaReceiptNumber,
+
+        transactionDate:
+          metadata.TransactionDate,
+
+        phoneNumber:
+          metadata.PhoneNumber
+      });
+
+      console.log(
+        `[STK_CALLBACK] Successful transaction saved: ${metadata.MpesaReceiptNumber}`
+      );
+    } else {
+      console.log(
+        `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
+      );
+    }
+
+    // Acknowledge callback to Safaricom
+    return res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: 'Accepted'
+    });
+
+  } catch (e) {
+    logError('STK_CALLBACK', e);
+
+    /*
+     * Always acknowledge the callback.
+     * This prevents unnecessary callback retries.
+     */
+    return res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: 'Accepted'
+    });
+  }
 }
