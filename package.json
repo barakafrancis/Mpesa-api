@@ -1,0 +1,9 @@
+{
+  "name": "vercel-mpesa-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev": "vercel dev", "start": "vercel dev"},
+  "dependencies": {"axios": "^1.10.0", "mssql": "^11.0.1"},
+  "devDependencies": {"vercel": "^48.0.0"}
+}
