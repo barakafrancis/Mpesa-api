@@ -1,105 +1,65 @@
-import { saveSTKTransaction } from '../../../src/database/transactionRepository.js';
-import { json } from '../../../src/utils/http.js';
-import { logError } from '../../../src/utils/logger.js';
+export async function saveSTKTransaction(transaction) {
+  const pool = await getPool();
 
-export default async function handler(req, res) {
-  try {
-    // Only accept POST requests
-    if (req.method !== 'POST') {
-      return json(res, 405, {
-        success: false,
-        message: 'Method not allowed'
-      });
-    }
-
-    // Extract STK callback
-    const callback = req.body?.Body?.stkCallback;
-
-    // Always acknowledge the callback
-    if (!callback) {
-      return json(res, 200, {
-        ResultCode: 0,
-        ResultDesc: 'Accepted'
-      });
-    }
-
-    // Extract callback metadata
-    const metadata = Object.fromEntries(
-      (callback.CallbackMetadata?.Item || []).map(item => [
-        item.Name,
-        item.Value ?? null
-      ])
-    );
-
-    console.log('[STK_CALLBACK]', {
-      resultCode: callback.ResultCode,
-      resultDesc: callback.ResultDesc,
-      merchantRequestId: callback.MerchantRequestID,
-      checkoutRequestId: callback.CheckoutRequestID,
-      metadata
-    });
-
-    /*
-     * Only save successful transactions.
-     *
-     * ResultCode 0 = Successful
-     */
-    if (callback.ResultCode === 0) {
-      await saveSTKTransaction({
-        resultCode: callback.ResultCode,
-
-        resultDesc: callback.ResultDesc,
-
-        merchantRequestId:
-          callback.MerchantRequestID,
-
-        checkoutRequestId:
-          callback.CheckoutRequestID,
-
-        amount:
-          metadata.Amount,
-
-        mpesaReceiptNumber:
-          metadata.MpesaReceiptNumber,
-
-        transactionDate:
-          metadata.TransactionDate,
-
-        phoneNumber:
-          metadata.PhoneNumber
-      });
-
-      console.log(
-        `[STK_CALLBACK] Successful transaction saved: ${metadata.MpesaReceiptNumber}`
-      );
-    } else {
-      /*
-       * Payment was cancelled or failed.
-       * Do not insert it as a successful transaction.
-       */
-      console.log(
-        `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
-      );
-    }
-
-    /*
-     * Safaricom expects a successful callback response.
-     */
-    return json(res, 200, {
-      ResultCode: 0,
-      ResultDesc: 'Accepted'
-    });
-
-  } catch (error) {
-    logError('STK_CALLBACK', error);
-
-    /*
-     * Always acknowledge the callback to avoid
-     * unnecessary callback retries.
-     */
-    return json(res, 200, {
-      ResultCode: 0,
-      ResultDesc: 'Accepted'
-    });
-  }
+  await pool.request()
+    .input('TransactionType', sql.VarChar, 'STK Push')
+    .input('TransID', sql.VarChar, transaction.mpesaReceiptNumber)
+    .input('TransTime', sql.VarChar, transaction.transactionDate)
+    .input('TransAmount', sql.Decimal(18, 2), transaction.amount)
+    .input(
+      'BusinessShortCode',
+      sql.VarChar,
+      process.env.MPESA_SHORTCODE
+    )
+    .input('BillRefNumber', sql.VarChar, null)
+    .input('OrgAccountBalance', sql.Decimal(18, 2), null)
+    .input('MSISDN', sql.VarChar, transaction.phoneNumber)
+    .input('FirstName', sql.VarChar, null)
+    .input('MiddleName', sql.VarChar, null)
+    .input('LastName', sql.VarChar, null)
+    .input('posted', sql.Bit, 0)
+    .input('tranpushed', sql.Bit, 0)
+    .input('paidtoaccount', sql.Bit, 0)
+    .input('syncid', sql.VarChar, transaction.checkoutRequestId)
+    .input('voided', sql.Bit, 0)
+    .query(`
+      INSERT INTO dbo.mtransdetails
+      (
+        TransactionType,
+        TransID,
+        TransTime,
+        TransAmount,
+        BusinessShortCode,
+        BillRefNumber,
+        OrgAccountBalance,
+        MSISDN,
+        FirstName,
+        MiddleName,
+        LastName,
+        posted,
+        tranpushed,
+        paidtoaccount,
+        syncid,
+        voided
+      )
+      VALUES
+      (
+        @TransactionType,
+        @TransID,
+        @TransTime,
+        @TransAmount,
+        @BusinessShortCode,
+        @BillRefNumber,
+        @OrgAccountBalance,
+        @MSISDN,
+        @FirstName,
+        @MiddleName,
+        @LastName,
+        @posted,
+        @tranpushed,
+        @paidtoaccount,
+        @syncid,
+        @voided
+      )
+    `);
 }
