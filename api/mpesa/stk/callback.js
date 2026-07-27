@@ -1,97 +1,152 @@
-import { saveSTKTransaction } from '../../../src/database/transactionRepository.js';
+import { saveSTKTransaction, saveC2BTransaction } from '../../../src/database/transactionRepository.js';
 import { logError } from '../../../src/utils/logger.js';
 
 export default async function handler(req, res) {
-  // Only accept POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      ResultCode: 1,
-      ResultDesc: 'Method not allowed'
-    });
-  }
+// Only accept POST requests
+if (req.method !== 'POST') {
+return res.status(405).json({
+ResultCode: 1,
+ResultDesc: 'Method not allowed'
+});
+}
 
-  try {
-    // Extract STK callback
-    const callback = req.body?.Body?.stkCallback;
+try {
+const body = req.body;
 
-    // Always acknowledge malformed/empty callbacks
-    if (!callback) {
-      return res.status(200).json({
-        ResultCode: 0,
-        ResultDesc: 'Accepted'
-      });
-    }
+```
+/*
+ * =====================================================
+ * C2B CALLBACK
+ * =====================================================
+ *
+ * Example:
+ * {
+ *   TransactionType: "Pay Bill",
+ *   TransID: "QWTBDFE67379j",
+ *   TransTime: "20260727130000",
+ *   TransAmount: "30000",
+ *   BusinessShortCode: "696459",
+ *   BillRefNumber: "27477748",
+ *   MSISDN: "254712345678"
+ * }
+ */
 
-    // Extract callback metadata
-    const metadata = Object.fromEntries(
-      (callback.CallbackMetadata?.Item || []).map(item => [
-        item.Name,
-        item.Value ?? null
-      ])
-    );
+if (body?.TransID) {
+  console.log('[C2B_CALLBACK]', body);
 
-    console.log('[STK_CALLBACK]', {
-      resultCode: callback.ResultCode,
-      resultDesc: callback.ResultDesc,
-      merchantRequestId: callback.MerchantRequestID,
-      checkoutRequestId: callback.CheckoutRequestID,
-      metadata
-    });
+  await saveC2BTransaction({
+    transId: body.TransID,
+    transactionType: body.TransactionType,
+    transTime: body.TransTime,
+    transAmount: body.TransAmount,
+    businessShortCode: body.BusinessShortCode,
+    billRefNumber: body.BillRefNumber,
+    orgAccountBalance: body.OrgAccountBalance,
+    msisdn: body.MSISDN,
+    firstName: body.FirstName,
+    middleName: body.MiddleName,
+    lastName: body.LastName
+  });
 
-    /*
-     * Save only successful transactions.
-     * ResultCode 0 = Successful
-     */
-    if (callback.ResultCode === 0) {
-      await saveSTKTransaction({
-        resultCode: callback.ResultCode,
+  console.log(
+    `[C2B_CALLBACK] Transaction saved successfully: ${body.TransID}`
+  );
 
-        resultDesc: callback.ResultDesc,
+  return res.status(200).json({
+    ResultCode: 0,
+    ResultDesc: 'Accepted'
+  });
+}
 
-        merchantRequestId:
-          callback.MerchantRequestID,
+/*
+STK PUSH CALLBACK
+ */
 
-        checkoutRequestId:
-          callback.CheckoutRequestID,
+const callback = body?.Body?.stkCallback;
 
-        amount:
-          metadata.Amount,
+// Acknowledgement
+if (!callback) {
+  console.log('[MPESA_CALLBACK] Unknown callback format:', body);
 
-        mpesaReceiptNumber:
-          metadata.MpesaReceiptNumber,
+  return res.status(200).json({
+    ResultCode: 0,
+    ResultDesc: 'Accepted'
+  });
+}
 
-        transactionDate:
-          metadata.TransactionDate,
+const metadata = Object.fromEntries(
+  (callback.CallbackMetadata?.Item || []).map(item => [
+    item.Name,
+    item.Value ?? null
+  ])
+);
 
-        phoneNumber:
-          metadata.PhoneNumber
-      });
+console.log('[STK_CALLBACK]', {
+  resultCode: callback.ResultCode,
+  resultDesc: callback.ResultDesc,
+  merchantRequestId: callback.MerchantRequestID,
+  checkoutRequestId: callback.CheckoutRequestID,
+  metadata
+});
 
-      console.log(
-        `[STK_CALLBACK] Successful transaction saved: ${metadata.MpesaReceiptNumber}`
-      );
-    } else {
-      console.log(
-        `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
-      );
-    }
+/*
+ * Save only successful STK transactions.
+ * ResultCode 0 = Successful
+ */
+if (callback.ResultCode === 0) {
+  await saveSTKTransaction({
+    resultCode: callback.ResultCode,
 
-    // Acknowledge callback to Safaricom
-    return res.status(200).json({
-      ResultCode: 0,
-      ResultDesc: 'Accepted'
-    });
+    resultDesc: callback.ResultDesc,
 
-  } catch (e) {
-    logError('STK_CALLBACK', e);
+    merchantRequestId:
+      callback.MerchantRequestID,
 
-    /*
-     * Always acknowledge the callback.
-     * This prevents unnecessary callback retries.
-     */
-    return res.status(200).json({
-      ResultCode: 0,
-      ResultDesc: 'Accepted'
-    });
-  }
+    checkoutRequestId:
+      callback.CheckoutRequestID,
+
+    amount:
+      metadata.Amount,
+
+    mpesaReceiptNumber:
+      metadata.MpesaReceiptNumber,
+
+    transactionDate:
+      metadata.TransactionDate,
+
+    phoneNumber:
+      metadata.PhoneNumber
+  });
+
+  console.log(
+    `[STK_CALLBACK] Successful transaction saved: ${metadata.MpesaReceiptNumber}`
+  );
+} else {
+  console.log(
+    `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
+  );
+}
+
+// Acknowledge callback to Safaricom
+return res.status(200).json({
+  ResultCode: 0,
+  ResultDesc: 'Accepted'
+});
+```
+
+} catch (e) {
+logError('MPESA_CALLBACK', e);
+
+```
+/*
+ * Always acknowledge the callback.
+ * This prevents unnecessary callback retries.
+ */
+return res.status(200).json({
+  ResultCode: 0,
+  ResultDesc: 'Accepted'
+});
+```
+
+}
 }
