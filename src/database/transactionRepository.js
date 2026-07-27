@@ -37,3 +37,155 @@ export async function saveC2BTransaction(t) {
        @posted, @tranpushed, @paidtoaccount, @syncid, 0);`);
   return { duplicate: false, id: result.recordset[0].id };
 }
+
+export async function saveSTKTransaction(transaction) {
+  if (!transaction.mpesaReceiptNumber) {
+    throw new Error('MpesaReceiptNumber is required');
+  }
+
+  // Prevent duplicate STK transactions
+  if (await transactionExists(transaction.mpesaReceiptNumber)) {
+    return { duplicate: true };
+  }
+
+  const pool = await getPool();
+
+  const request = pool.request();
+
+  request.input(
+    'TransactionType',
+    sql.NVarChar(100),
+    'STK'
+  );
+
+  request.input(
+    'TransID',
+    sql.NVarChar(100),
+    transaction.mpesaReceiptNumber
+  );
+
+  request.input(
+    'TransTime',
+    sql.NVarChar(50),
+    transaction.transactionDate
+      ? String(transaction.transactionDate)
+      : null
+  );
+
+  request.input(
+    'TransAmount',
+    sql.NVarChar(50),
+    transaction.amount !== undefined &&
+    transaction.amount !== null
+      ? String(transaction.amount)
+      : null
+  );
+
+  request.input(
+    'BusinessShortCode',
+    sql.NVarChar(100),
+    process.env.MPESA_SHORTCODE
+  );
+
+  request.input(
+    'BillRefNumber',
+    sql.NVarChar(50),
+    null
+  );
+
+  request.input(
+    'MSISDN',
+    sql.NVarChar(100),
+    transaction.phoneNumber
+      ? String(transaction.phoneNumber)
+      : null
+  );
+
+  request.input(
+    'FirstName',
+    sql.NVarChar(100),
+    null
+  );
+
+  request.input(
+    'MiddleName',
+    sql.NVarChar(100),
+    null
+  );
+
+  request.input(
+    'LastName',
+    sql.NVarChar(100),
+    null
+  );
+
+  request.input(
+    'posted',
+    sql.Bit,
+    false
+  );
+
+  request.input(
+    'tranpushed',
+    sql.Bit,
+    true
+  );
+
+  request.input(
+    'paidtoaccount',
+    sql.NVarChar(100),
+    null
+  );
+
+  request.input(
+    'syncid',
+    sql.NVarChar(250),
+    transaction.checkoutRequestId
+  );
+
+  const result = await request.query(`
+    INSERT INTO dbo.mtransdetails
+    (
+      TransactionType,
+      TransID,
+      TransTime,
+      TransAmount,
+      BusinessShortCode,
+      BillRefNumber,
+      MSISDN,
+      FirstName,
+      MiddleName,
+      LastName,
+      posted,
+      tranpushed,
+      paidtoaccount,
+      syncid,
+      voided
+    )
+    VALUES
+    (
+      @TransactionType,
+      @TransID,
+      @TransTime,
+      @TransAmount,
+      @BusinessShortCode,
+      @BillRefNumber,
+      @MSISDN,
+      @FirstName,
+      @MiddleName,
+      @LastName,
+      @posted,
+      @tranpushed,
+      @paidtoaccount,
+      @syncid,
+      0
+    );
+
+    SELECT SCOPE_IDENTITY() AS id;
+  `);
+
+  return {
+    duplicate: false,
+    id: result.recordset[0].id
+  };
+}
