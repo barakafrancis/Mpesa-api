@@ -1,4 +1,8 @@
-import { saveSTKTransaction, saveC2BTransaction } from '../../../src/database/transactionRepository.js';
+import {
+saveSTKTransaction,
+saveC2BTransaction
+} from '../../../src/database/transactionRepository.js';
+
 import { logError } from '../../../src/utils/logger.js';
 
 export default async function handler(req, res) {
@@ -15,37 +19,26 @@ const body = req.body;
 
 ```
 /*
- * =====================================================
+ * ==========================================
  * C2B CALLBACK
- * =====================================================
- *
- * Example:
- * {
- *   TransactionType: "Pay Bill",
- *   TransID: "QWTBDFE67379j",
- *   TransTime: "20260727130000",
- *   TransAmount: "30000",
- *   BusinessShortCode: "696459",
- *   BillRefNumber: "27477748",
- *   MSISDN: "254712345678"
- * }
+ * ==========================================
  */
 
 if (body?.TransID) {
   console.log('[C2B_CALLBACK]', body);
 
   await saveC2BTransaction({
-    transId: body.TransID,
-    transactionType: body.TransactionType,
-    transTime: body.TransTime,
-    transAmount: body.TransAmount,
-    businessShortCode: body.BusinessShortCode,
-    billRefNumber: body.BillRefNumber,
-    orgAccountBalance: body.OrgAccountBalance,
-    msisdn: body.MSISDN,
-    firstName: body.FirstName,
-    middleName: body.MiddleName,
-    lastName: body.LastName
+    TransactionType: body.TransactionType,
+    TransID: body.TransID,
+    TransTime: body.TransTime,
+    TransAmount: body.TransAmount,
+    BusinessShortCode: body.BusinessShortCode,
+    BillRefNumber: body.BillRefNumber,
+    OrgAccountBalance: body.OrgAccountBalance,
+    MSISDN: body.MSISDN,
+    FirstName: body.FirstName,
+    MiddleName: body.MiddleName,
+    LastName: body.LastName
   });
 
   console.log(
@@ -59,14 +52,19 @@ if (body?.TransID) {
 }
 
 /*
-STK PUSH CALLBACK
+ * ==========================================
+ * STK PUSH CALLBACK
+ * ==========================================
  */
 
 const callback = body?.Body?.stkCallback;
 
-// Acknowledgement
+// Unknown or malformed callback
 if (!callback) {
-  console.log('[MPESA_CALLBACK] Unknown callback format:', body);
+  console.log(
+    '[MPESA_CALLBACK] Unknown callback format:',
+    body
+  );
 
   return res.status(200).json({
     ResultCode: 0,
@@ -90,32 +88,18 @@ console.log('[STK_CALLBACK]', {
 });
 
 /*
- * Save only successful STK transactions.
- * ResultCode 0 = Successful
+ * Save only successful STK transactions
  */
 if (callback.ResultCode === 0) {
   await saveSTKTransaction({
     resultCode: callback.ResultCode,
-
     resultDesc: callback.ResultDesc,
-
-    merchantRequestId:
-      callback.MerchantRequestID,
-
-    checkoutRequestId:
-      callback.CheckoutRequestID,
-
-    amount:
-      metadata.Amount,
-
-    mpesaReceiptNumber:
-      metadata.MpesaReceiptNumber,
-
-    transactionDate:
-      metadata.TransactionDate,
-
-    phoneNumber:
-      metadata.PhoneNumber
+    merchantRequestId: callback.MerchantRequestID,
+    checkoutRequestId: callback.CheckoutRequestID,
+    amount: metadata.Amount,
+    mpesaReceiptNumber: metadata.MpesaReceiptNumber,
+    transactionDate: metadata.TransactionDate,
+    phoneNumber: metadata.PhoneNumber
   });
 
   console.log(
@@ -127,7 +111,6 @@ if (callback.ResultCode === 0) {
   );
 }
 
-// Acknowledge callback to Safaricom
 return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
@@ -138,10 +121,7 @@ return res.status(200).json({
 logError('MPESA_CALLBACK', e);
 
 ```
-/*
- * Always acknowledge the callback.
- * This prevents unnecessary callback retries.
- */
+// Always acknowledge the callback
 return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
