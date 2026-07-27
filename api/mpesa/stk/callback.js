@@ -6,7 +6,6 @@ saveC2BTransaction
 import { logError } from '../../../src/utils/logger.js';
 
 export default async function handler(req, res) {
-// Only accept POST requests
 if (req.method !== 'POST') {
 return res.status(405).json({
 ResultCode: 1,
@@ -16,14 +15,6 @@ ResultDesc: 'Method not allowed'
 
 try {
 const body = req.body;
-
-```
-/*
- * ==========================================
- * C2B CALLBACK
- * ==========================================
- */
-
 if (body?.TransID) {
   console.log('[C2B_CALLBACK]', body);
 
@@ -51,15 +42,8 @@ if (body?.TransID) {
   });
 }
 
-/*
- * ==========================================
- * STK PUSH CALLBACK
- * ==========================================
- */
-
 const callback = body?.Body?.stkCallback;
 
-// Unknown or malformed callback
 if (!callback) {
   console.log(
     '[MPESA_CALLBACK] Unknown callback format:',
@@ -87,9 +71,6 @@ console.log('[STK_CALLBACK]', {
   metadata
 });
 
-/*
- * Save only successful STK transactions
- */
 if (callback.ResultCode === 0) {
   await saveSTKTransaction({
     resultCode: callback.ResultCode,
@@ -115,18 +96,14 @@ return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
 });
-```
 
 } catch (e) {
 logError('MPESA_CALLBACK', e);
 
-```
-// Always acknowledge the callback
 return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
 });
-```
 
 }
 }
