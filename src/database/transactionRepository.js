@@ -184,14 +184,7 @@ export async function saveSTKTransaction(transaction) {
     SELECT SCOPE_IDENTITY() AS id;
   `);
 
-  return {
-    duplicate: false,
-    id: result.recordset[0].id,
-    transId: transaction.mpesaReceiptNumber
-  };
-}
-
-export async function updateSTKSMSResponse({
+  export async function updateSTKSMSResponse({
   id,
   mobile,
   response
@@ -254,4 +247,10 @@ export async function updateSTKSMSResponse({
         sms_sent_at = GETDATE()
       WHERE id = @id;
     `);
+  
+  return {
+    duplicate: false,
+    id: result.recordset[0].id,
+    transId: transaction.mpesaReceiptNumber
+  };
 }
