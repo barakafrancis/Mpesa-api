@@ -186,6 +186,7 @@ export async function saveSTKTransaction(transaction) {
 
   return {
     duplicate: false,
-    id: result.recordset[0].id
+    id: result.recordset[0].id,
+    transId: transaction.mpesaReceiptNumber
   };
 }
