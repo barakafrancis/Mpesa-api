@@ -190,3 +190,68 @@ export async function saveSTKTransaction(transaction) {
     transId: transaction.mpesaReceiptNumber
   };
 }
+
+export async function updateSTKSMSResponse({
+  id,
+  mobile,
+  response
+}) {
+  const pool = await getPool();
+
+  const smsResult = response?.responses?.[0];
+
+  await pool.request()
+    .input('id', sql.Int, id)
+    .input('sms_sent', sql.Bit, smsResult?.['respose-code'] === 200)
+    .input(
+      'sms_response_code',
+      sql.NVarChar(50),
+      smsResult?.['respose-code'] != null
+        ? String(smsResult['respose-code'])
+        : null
+    )
+    .input(
+      'sms_response_description',
+      sql.NVarChar(250),
+      smsResult?.['response-description'] ?? null
+    )
+    .input(
+      'sms_mobile',
+      sql.NVarChar(50),
+      smsResult?.mobile
+        ? String(smsResult.mobile)
+        : String(mobile)
+    )
+    .input(
+      'sms_messageid',
+      sql.NVarChar(100),
+      smsResult?.messageid != null
+        ? String(smsResult.messageid)
+        : null
+    )
+    .input(
+      'sms_networkid',
+      sql.NVarChar(50),
+      smsResult?.networkid != null
+        ? String(smsResult.networkid)
+        : null
+    )
+    .input(
+      'sms_response',
+      sql.NVarChar(sql.MAX),
+      JSON.stringify(response)
+    )
+    .query(`
+      UPDATE dbo.mtransdetails
+      SET
+        sms_sent = @sms_sent,
+        sms_response_code = @sms_response_code,
+        sms_response_description = @sms_response_description,
+        sms_mobile = @sms_mobile,
+        sms_messageid = @sms_messageid,
+        sms_networkid = @sms_networkid,
+        sms_response = @sms_response,
+        sms_sent_at = GETDATE()
+      WHERE id = @id;
+    `);
+}
