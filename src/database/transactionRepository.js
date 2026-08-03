@@ -2,15 +2,30 @@ import { getPool, sql } from './sqlserver.js';
 
 export async function transactionExists(transId) {
   const pool = await getPool();
-  const result = await pool.request().input('TransID', sql.NVarChar(100), transId)
-    .query('SELECT TOP 1 id FROM dbo.mtransdetails WHERE TransID = @TransID;');
+
+  const result = await pool.request()
+    .input('TransID', sql.NVarChar(100), transId)
+    .query(`
+      SELECT TOP 1 id
+      FROM dbo.mtransdetails
+      WHERE TransID = @TransID;
+    `);
+
   return result.recordset.length > 0;
 }
 
+
 export async function saveC2BTransaction(t) {
-  if (!t.TransID) throw new Error('TransID is required');
-  if (await transactionExists(t.TransID)) return { duplicate: true };
+  if (!t.TransID) {
+    throw new Error('TransID is required');
+  }
+
+  if (await transactionExists(t.TransID)) {
+    return { duplicate: true };
+  }
+
   const pool = await getPool();
+
   const result = await pool.request()
     .input('TransactionType', sql.NVarChar(100), t.TransactionType ?? 'C2B')
     .input('TransID', sql.NVarChar(100), t.TransID)
@@ -27,16 +42,54 @@ export async function saveC2BTransaction(t) {
     .input('tranpushed', sql.Bit, false)
     .input('paidtoaccount', sql.NVarChar(100), t.BillRefNumber)
     .input('syncid', sql.NVarChar(250), t.TransID)
-    .query(`INSERT INTO dbo.mtransdetails
-      (TransactionType, TransID, TransTime, TransAmount, BusinessShortCode, BillRefNumber,
-       OrgAccountBalance, MSISDN, FirstName, MiddleName, LastName, posted, tranpushed,
-       paidtoaccount, syncid, voided)
+    .query(`
+      INSERT INTO dbo.mtransdetails
+      (
+        TransactionType,
+        TransID,
+        TransTime,
+        TransAmount,
+        BusinessShortCode,
+        BillRefNumber,
+        OrgAccountBalance,
+        MSISDN,
+        FirstName,
+        MiddleName,
+        LastName,
+        posted,
+        tranpushed,
+        paidtoaccount,
+        syncid,
+        voided
+      )
       OUTPUT INSERTED.id
-      VALUES (@TransactionType, @TransID, @TransTime, @TransAmount, @BusinessShortCode,
-       @BillRefNumber, @OrgAccountBalance, @MSISDN, @FirstName, @MiddleName, @LastName,
-       @posted, @tranpushed, @paidtoaccount, @syncid, 0);`);
-  return { duplicate: false, id: result.recordset[0].id };
+      VALUES
+      (
+        @TransactionType,
+        @TransID,
+        @TransTime,
+        @TransAmount,
+        @BusinessShortCode,
+        @BillRefNumber,
+        @OrgAccountBalance,
+        @MSISDN,
+        @FirstName,
+        @MiddleName,
+        @LastName,
+        @posted,
+        @tranpushed,
+        @paidtoaccount,
+        @syncid,
+        0
+      );
+    `);
+
+  return {
+    duplicate: false,
+    id: result.recordset[0].id
+  };
 }
+
 
 export async function saveSTKTransaction(transaction) {
   if (!transaction.mpesaReceiptNumber) {
@@ -184,7 +237,18 @@ export async function saveSTKTransaction(transaction) {
     SELECT SCOPE_IDENTITY() AS id;
   `);
 
-  export async function updateSTKSMSResponse({
+  return {
+    duplicate: false,
+    id: result.recordset[0].id,
+    transId: transaction.mpesaReceiptNumber
+  };
+}
+
+
+/**
+ * Update SMS response for an STK transaction
+ */
+export async function updateSTKSMSResponse({
   id,
   mobile,
   response
@@ -195,7 +259,13 @@ export async function saveSTKTransaction(transaction) {
 
   await pool.request()
     .input('id', sql.Int, id)
-    .input('sms_sent', sql.Bit, smsResult?.['respose-code'] === 200)
+
+    .input(
+      'sms_sent',
+      sql.Bit,
+      smsResult?.['respose-code'] === 200
+    )
+
     .input(
       'sms_response_code',
       sql.NVarChar(50),
@@ -203,11 +273,13 @@ export async function saveSTKTransaction(transaction) {
         ? String(smsResult['respose-code'])
         : null
     )
+
     .input(
       'sms_response_description',
       sql.NVarChar(250),
       smsResult?.['response-description'] ?? null
     )
+
     .input(
       'sms_mobile',
       sql.NVarChar(50),
@@ -215,6 +287,7 @@ export async function saveSTKTransaction(transaction) {
         ? String(smsResult.mobile)
         : String(mobile)
     )
+
     .input(
       'sms_messageid',
       sql.NVarChar(100),
@@ -222,6 +295,7 @@ export async function saveSTKTransaction(transaction) {
         ? String(smsResult.messageid)
         : null
     )
+
     .input(
       'sms_networkid',
       sql.NVarChar(50),
@@ -229,11 +303,13 @@ export async function saveSTKTransaction(transaction) {
         ? String(smsResult.networkid)
         : null
     )
+
     .input(
       'sms_response',
       sql.NVarChar(sql.MAX),
       JSON.stringify(response)
     )
+
     .query(`
       UPDATE dbo.mtransdetails
       SET
@@ -247,10 +323,10 @@ export async function saveSTKTransaction(transaction) {
         sms_sent_at = GETDATE()
       WHERE id = @id;
     `);
-  
+
   return {
-    duplicate: false,
-    id: result.recordset[0].id,
-    transId: transaction.mpesaReceiptNumber
+    success: true,
+    id
   };
 }
+
