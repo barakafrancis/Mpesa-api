@@ -3,6 +3,7 @@ saveSTKTransaction,
 saveC2BTransaction
 } from '../../../src/database/transactionRepository.js';
 
+import { sendAcknowledgementSMS } from '../../../src/mpesa/sms.service.js';
 import { logError } from '../../../src/utils/logger.js';
 
 export default async function handler(req, res) {
@@ -90,8 +91,56 @@ if (callback.ResultCode === 0) {
   console.log(
     `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
   );
-}
+  
+       /* 2. Send SMS */
+      if (!transaction.duplicate && metadata.PhoneNumber) {
 
+        const smsMessage =
+          `Payment received successfully. ` +
+          `Amount: KES ${metadata.Amount}. ` +
+          `M-Pesa Ref: ${metadata.MpesaReceiptNumber}. ` +
+          `Thank you.`;
+
+        try {
+
+          const smsResponse = await sendAcknowledgementSMS({
+            mobile: metadata.PhoneNumber,
+            message: smsMessage
+          });
+
+          console.log(
+            '[STK_SMS] Response:',
+            smsResponse
+          );
+          /*
+           *Save SMS response 
+           */
+          await updateSTKSMSResponse({
+            id: transaction.id,
+            mobile: metadata.PhoneNumber,
+            response: smsResponse
+          });
+
+          console.log(
+            '[STK_SMS] Response saved to database'
+          );
+
+        } catch (smsError) {
+
+          logError('STK_SMS', smsError);
+
+          console.error(
+            '[STK_SMS] Failed to send SMS'
+          );
+        }
+      }
+
+    } else {
+
+      console.log(
+        `[STK_CALLBACK] Payment failed: ${callback.ResultCode} - ${callback.ResultDesc}`
+      );
+    }
 return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
@@ -104,6 +153,5 @@ return res.status(200).json({
   ResultCode: 0,
   ResultDesc: 'Accepted'
 });
-
 }
 }
