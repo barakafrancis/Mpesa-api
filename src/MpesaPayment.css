@@ -1,0 +1,301 @@
+* {
+    box-sizing: border-box;
+}
+
+.payment-page {
+    min-height: 100vh;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f4f8f5,
+            #e9f5ec
+        );
+
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+
+.payment-card {
+    width: 100%;
+    max-width: 430px;
+
+    background: white;
+
+    border-radius: 24px;
+
+    padding: 35px;
+
+    box-shadow:
+        0 20px 60px
+        rgba(0, 0, 0, 0.12);
+}
+
+
+.payment-header {
+    text-align: center;
+
+    margin-bottom: 30px;
+}
+
+
+.mpesa-logo {
+    display: inline-block;
+
+    font-size: 28px;
+    font-weight: 900;
+
+    letter-spacing: -1px;
+
+    margin-bottom: 15px;
+}
+
+
+.payment-header h1 {
+    margin: 0;
+
+    font-size: 27px;
+
+    color: #202020;
+}
+
+
+.payment-header p {
+    margin-top: 8px;
+
+    color: #777;
+
+    font-size: 14px;
+
+    line-height: 1.5;
+}
+
+
+.payment-form {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 22px;
+}
+
+
+.form-group {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 8px;
+}
+
+
+.form-group label {
+    font-size: 14px;
+
+    font-weight: 700;
+
+    color: #333;
+}
+
+
+.form-group small {
+    color: #888;
+
+    font-size: 12px;
+}
+
+
+.input-wrapper,
+.amount-wrapper {
+    display: flex;
+
+    align-items: center;
+
+    border: 1.5px solid #ddd;
+
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    transition: 0.2s;
+}
+
+
+.input-wrapper:focus-within,
+.amount-wrapper:focus-within {
+    border-color: #159447;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(21, 148, 71, 0.1);
+}
+
+
+.input-wrapper span,
+.amount-wrapper span {
+    padding: 0 14px;
+
+    font-weight: 700;
+
+    color: #555;
+
+    white-space: nowrap;
+}
+
+
+.input-wrapper input,
+.amount-wrapper input {
+    width: 100%;
+
+    border: none;
+
+    outline: none;
+
+    padding: 15px 12px;
+
+    font-size: 17px;
+
+    background: transparent;
+}
+
+
+.amount-wrapper input {
+    font-weight: 700;
+}
+
+
+.pay-button {
+    width: 100%;
+
+    border: none;
+
+    border-radius: 12px;
+
+    padding: 16px;
+
+    font-size: 16px;
+
+    font-weight: 800;
+
+    cursor: pointer;
+
+    background: #159447;
+
+    color: white;
+
+    transition: 0.2s;
+
+    min-height: 54px;
+}
+
+
+.pay-button:hover {
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 8px 20px
+        rgba(21, 148, 71, 0.25);
+}
+
+
+.pay-button:disabled {
+    opacity: 0.7;
+
+    cursor: not-allowed;
+
+    transform: none;
+}
+
+
+.payment-message {
+    padding: 13px 15px;
+
+    border-radius: 10px;
+
+    font-size: 13px;
+
+    line-height: 1.5;
+}
+
+
+.payment-message.success {
+    background: #eaf8ef;
+
+    color: #116b35;
+}
+
+
+.payment-message.error {
+    background: #fff0f0;
+
+    color: #b42318;
+}
+
+
+.secure-payment {
+    text-align: center;
+
+    margin-top: 25px;
+
+    font-size: 12px;
+
+    color: #888;
+}
+
+
+.spinner {
+    display: inline-block;
+
+    width: 17px;
+    height: 17px;
+
+    border: 2px solid
+        rgba(255,255,255,0.4);
+
+    border-top-color: white;
+
+    border-radius: 50%;
+
+    animation: spin 0.7s linear infinite;
+
+    vertical-align: middle;
+
+    margin-right: 8px;
+}
+
+
+@keyframes spin {
+
+    to {
+        transform: rotate(360deg);
+    }
+
+}
+
+
+@media (max-width: 480px) {
+
+    .payment-card {
+        padding: 25px 20px;
+
+        border-radius: 18px;
+    }
+
+    .payment-header h1 {
+        font-size: 24px;
+    }
+
+}
