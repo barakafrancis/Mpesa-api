@@ -1,69 +1,86 @@
 import { initiateSTKPush } from '../../../src/mpesa/stk.service.js';
-import { json, methodNotAllowed, requireApiKey } from '../../../src/utils/http.js';
+import {
+  json,
+  methodNotAllowed,
+  requireApiKey
+} from '../../../src/utils/http.js';
+
 import { logError } from '../../../src/utils/logger.js';
 import { getPool, sql } from '../../../src/db/sqlserver.js';
 
 function normalizePhone(phoneNumber) {
-  if (!phoneNumber) return null;
 
-  let phone = String(phoneNumber).trim();
-
-  // Remove +, spaces, -, brackets, etc.
-  phone = phone.replace(/\D/g, '');
-
-  // 0712345678 -> 254712345678
-  if (phone.startsWith('0')) {
-    phone = '254' + phone.substring(1);
+  if (!phoneNumber) {
+    return null;
   }
 
-  // 712345678 -> 254712345678
-  if (phone.startsWith('7') && phone.length === 9) {
-    phone = '254' + phone;
+  let phone = String(phoneNumber)
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/-/g, '');
+
+  if (phone.startsWith('+')) {
+    phone = phone.substring(1);
   }
 
-  return phone;
-}
+  if (/^07\d{8}$/.test(phone)) {
+    return `254${phone.substring(1)}`;
+  }
 
-function isValidPhone(phone) {
-  return /^2547\d{8}$/.test(phone);
+  if (/^01\d{8}$/.test(phone)) {
+    return `254${phone.substring(1)}`;
+  }
+
+  if (/^254\d{9}$/.test(phone)) {
+    return phone;
+  }
+
+  return null;
 }
 
 async function createPaymentRequest({
-  amount,
   phoneNumber,
+  amount,
   initiator,
   accountReference,
   transactionDesc
 }) {
+
   const pool = await getPool();
 
   const result = await pool
     .request()
+
     .input(
       'PhoneNumber',
       sql.VarChar(20),
       phoneNumber
     )
+
     .input(
       'Amount',
       sql.Decimal(18, 2),
       amount
     )
+
     .input(
       'Initiator',
       sql.VarChar(150),
       initiator
     )
+
     .input(
       'AccountReference',
       sql.VarChar(100),
       accountReference
     )
+
     .input(
       'TransactionDescription',
       sql.VarChar(255),
       transactionDesc
     )
+
     .query(`
       INSERT INTO dbo.MpesaPaymentRequests
       (
@@ -75,7 +92,9 @@ async function createPaymentRequest({
         PaymentStatus,
         InitiatedAt
       )
+
       OUTPUT INSERTED.Id
+
       VALUES
       (
         @PhoneNumber,
@@ -98,52 +117,64 @@ async function updatePaymentRequest({
   resultCode,
   resultDescription
 }) {
+
   const pool = await getPool();
 
   await pool
     .request()
+
     .input(
       'Id',
       sql.BigInt,
       id
     )
+
     .input(
       'MerchantRequestID',
       sql.VarChar(100),
       merchantRequestID
     )
+
     .input(
       'CheckoutRequestID',
       sql.VarChar(100),
       checkoutRequestID
     )
+
     .input(
       'ResultCode',
       sql.Int,
       resultCode
     )
+
     .input(
       'ResultDescription',
       sql.VarChar(500),
       resultDescription
     )
+
     .query(`
       UPDATE dbo.MpesaPaymentRequests
+
       SET
         MerchantRequestID = @MerchantRequestID,
         CheckoutRequestID = @CheckoutRequestID,
         ResultCode = @ResultCode,
         ResultDescription = @ResultDescription
+
       WHERE Id = @Id;
     `);
 }
 
-export default async function handler(req, res) {
 
-  // Keep your existing protection
-  if (methodNotAllowed(req, res) || !requireApiKey(req, res)) {
+export default async function handler(req, res) {
+  if (
+    methodNotAllowed(req, res) ||
+    !requireApiKey(req, res)
+  ) {
     return;
   }
+
 
   try {
 
@@ -155,83 +186,112 @@ export default async function handler(req, res) {
       initiator
     } = req.body || {};
 
-    // Validate amount//
-
-    const paymentAmount = Number(amount);
+    const numericAmount = Number(amount);
 
     if (
-      !Number.isFinite(paymentAmount) ||
-      paymentAmount <= 0
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0
     ) {
+
       return json(res, 400, {
         success: false,
-        error: 'Amount must be greater than zero'
+        message: 'Amount must be greater than zero'
       });
+
     }
 
-    if (!Number.isInteger(paymentAmount)) {
+
+    if (!Number.isInteger(numericAmount)) {
+
       return json(res, 400, {
         success: false,
-        error: 'Amount must be a whole number'
+        message: 'Amount must be a whole number'
       });
-    }
 
-    // Normalize phone//
+    }
 
     const normalizedPhone =
       normalizePhone(phoneNumber);
 
+
     if (!normalizedPhone) {
+
       return json(res, 400, {
         success: false,
-        error: 'Phone number is required'
+        message:
+          'Invalid phone number. Use 07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX.'
       });
+
     }
 
-    // Validate//
-
-    if (!isValidPhone(normalizedPhone)) {
-      return json(res, 400, {
-        success: false,
-        error:
-          'Invalid Kenyan phone number. Use a valid 07XXXXXXXX or 2547XXXXXXXX number.'
-      });
-    }
-
-   // Defaults//
 
     const paymentInitiator =
-      initiator || 'WEB_USER';
+      String(initiator || 'WEB_USER')
+        .slice(0, 150);
+
 
     const reference =
-      accountReference || 'PAYMENT';
+      String(accountReference || 'PAYMENT')
+        .slice(0, 100);
+
 
     const description =
-      transactionDesc || 'Customer Payment';
+      String(transactionDesc || 'Payment')
+        .slice(0, 255);
 
-    // Save request as PENDING// 
-  
-const paymentId =
+    const paymentId =
       await createPaymentRequest({
-        amount: paymentAmount,
-        phoneNumber: normalizedPhone,
-        initiator: paymentInitiator,
-        accountReference: reference,
-        transactionDesc: description
+
+        phoneNumber:
+          normalizedPhone,
+
+        amount:
+          numericAmount,
+
+        initiator:
+          paymentInitiator,
+
+        accountReference:
+          reference,
+
+        transactionDesc:
+          description
+
       });
 
-    // stk //
- const data = await initiateSTKPush({
-      amount: paymentAmount,
-      phoneNumber: normalizedPhone,
-      accountReference: reference,
-      transactionDesc: description
-    });
 
-    // Save M-Pesa request//
+    console.log(
+      `M-Pesa payment request created: ${paymentId}`
+    );
+
+    const data =
+      await initiateSTKPush({
+
+        amount:
+          numericAmount,
+
+        phoneNumber:
+          normalizedPhone,
+
+        accountReference:
+          reference,
+
+        transactionDesc:
+          description
+
+      });
+
+
+    console.log(
+      'STK PUSH RESPONSE:',
+      data
+    );
+
 
     await updatePaymentRequest({
-      id: paymentId,
+
+      id:
+        paymentId,
 
       merchantRequestID:
         data?.MerchantRequestID || null,
@@ -245,36 +305,52 @@ const paymentId =
           : null,
 
       resultDescription:
-        data?.ResponseDescription ||
-        null
+        data?.ResponseDescription || null
+
     });
 
-    //response to frontend//
-    
     return json(res, 200, {
 
       success: true,
 
       paymentId,
 
-      phoneNumber: normalizedPhone,
+      phoneNumber:
+        normalizedPhone,
 
-      amount: paymentAmount,
+      amount:
+        numericAmount,
 
       data
 
     });
 
+
   } catch (e) {
+
+    /*
+     * Log the error using your
+     * existing logger.
+     */
 
     logError('STK_PUSH', e);
 
+
+    console.error(
+      'STK PUSH ERROR:',
+      e.response?.data || e.message
+    );
+
+
     return json(res, 500, {
+
       success: false,
 
       error:
         e.response?.data ||
         e.message
+
     });
+
   }
 }
