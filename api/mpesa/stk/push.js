@@ -1,4 +1,5 @@
 import { initiateSTKPush } from '../../../src/mpesa/stk.service.js';
+
 import {
   json,
   methodNotAllowed,
@@ -6,7 +7,8 @@ import {
 } from '../../../src/utils/http.js';
 
 import { logError } from '../../../src/utils/logger.js';
-import { getPool, sql } from '../../../src/db/sqlserver.js';
+
+import { getPool, sql } from '../../../src/database/sqlserver.js';
 
 function normalizePhone(phoneNumber) {
 
